@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: api
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: client
+  namespace: api
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      serviceAccount: client
+      volumes:
+        - name: api-token
+          projected:
+            sources:
+            - serviceAccountToken:
+                path: api-token
+                expirationSeconds: 600
+                audience: server
+      containers:
+      - name: app
+        image: x/client:latest
+        imagePullPolicy: "IfNotPresent"
+        env:
+        - name: "BACKEND_ADDRESS"
+          value: "http://app.data-store.svc.cluster.local"
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+          - mountPath: /var/run/secrets/tokens
+            name: api-token
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: api
+spec:
+  selector:
+    app: api
+  ports:
+    - port: 8080
+      targetPort: 8080
